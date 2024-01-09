@@ -230,7 +230,7 @@ func main() {
 		GatewayPeer:  "peer0.org1.example.com",
 	}
 
-	// orgConfig.InitializeHandler()e
+	// orgConfig.InitializeHandler()
 
 	r := gin.Default()
 	r.GET("/init",orgConfig.InitializeHandler)
