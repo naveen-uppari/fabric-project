@@ -9,6 +9,7 @@ import (
 	"path"
 	"time"
 
+	
 	"github.com/gin-gonic/gin"
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
@@ -28,6 +29,19 @@ type OrgSetup struct {
 	Gateway      *client.Gateway
 }
 
+// func AuthMiddleware() gin.HandlerFunc {
+// 	// In a real-world application, you would perform proper authentication here.
+// 	// For the sake of this example, we'll just check if an API key is present.
+// 	return func(c *gin.Context) {
+// 		apiKey := c.GetHeader("X-API-Key")
+// 		if apiKey == "" {
+// 			c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
+// 			return
+// 		}
+// 		c.Next()
+// 	}
+// }
+
 func (setup *OrgSetup) InitializeHandler(c *gin.Context) {
 	log.Printf("Initializing connection for %s...\n", setup.OrgName)
 
@@ -45,13 +59,13 @@ func (setup *OrgSetup) InitializeHandler(c *gin.Context) {
 		client.WithCommitStatusTimeout(1*time.Minute),
 	)
 	if err != nil {
-		c.String(http.StatusInternalServerError, fmt.Sprintf("Error initializing connection: %s", err))
+		log.Printf("%v,%v", http.StatusInternalServerError, fmt.Sprintf("Error initializing connection: %s", err))
 		return
 	}
 	setup.Gateway = gateway
 
+	log.Printf("Gateway: %+v\n", setup.Gateway)
 	log.Println("Initialization complete")
-	c.String(http.StatusOK, "Initialization complete")
 }
 
 // newGrpcConnection creates a gRPC connection to the Gateway server.
@@ -131,6 +145,15 @@ func (setup *OrgSetup) Query(c *gin.Context) {
 
 	fmt.Printf("channel: %s, chaincode: %s, function: %s, args: %v\n", channelID, chainCodeName, function, args)
 
+	fmt.Printf("Gateway: %+v\n", setup.Gateway)
+
+	if setup == nil {
+		log.Fatal("setup is nil")
+	}
+	if setup.Gateway == nil {
+		log.Fatal("Gateway is nil")
+	}
+
 	network := setup.Gateway.GetNetwork(channelID)
 	contract := network.GetContract(chainCodeName)
 
@@ -158,11 +181,23 @@ func (setup *OrgSetup) Invoke(c *gin.Context) {
 
 	fmt.Printf("channel: %s, chaincode: %s, function: %s, args: %v\n", channelID, chainCodeName, function, args)
 
+	fmt.Printf("Gateway: %+v\n", setup.Gateway)
+
+	if setup == nil {
+		log.Fatal("setup is nil")
+	}
+	if setup.Gateway == nil {
+		log.Fatal("Gateway is nil")
+	}
+
 	network := setup.Gateway.GetNetwork(channelID)
 	contract := network.GetContract(chainCodeName)
 
+	//contract.Submit(function,client.WithArguments(args...))
+
 	txn_proposal, err := contract.NewProposal(function, client.WithArguments(args...))
 	if err != nil {
+		log.Println("error: %v",err.Error())
 		c.String(http.StatusInternalServerError, fmt.Sprintf("Error creating txn proposal: %s", err))
 		return
 	}
@@ -195,15 +230,13 @@ func main() {
 		GatewayPeer:  "peer0.org1.example.com",
 	}
 
-	orgSetup := &OrgSetup{}
+	// orgConfig.InitializeHandler()e
 
 	r := gin.Default()
+	r.GET("/init",orgConfig.InitializeHandler)
+	r.POST("/invoke", orgConfig.Invoke)
 
-	r.GET("/initialize", orgConfig.InitializeHandler)
-
-	r.POST("/invoke", orgSetup.Invoke)
-
-	r.GET("/query", orgSetup.Query)
+	r.GET("/query", orgConfig.Query)
 
 	err := r.Run(":8080")
 	if err != nil {
